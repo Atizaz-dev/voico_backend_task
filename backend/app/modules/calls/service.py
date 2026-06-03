@@ -1,0 +1,48 @@
+import logging
+import uuid
+from typing import Optional
+
+from fastapi import HTTPException, status
+
+from app.modules.calls.repository import CallRepository
+from app.modules.calls.schema import (
+    CallCounts,
+    CallResponse,
+    CallStatus,
+    PaginatedCallsResponse,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class CallService:
+    def __init__(self, repository: CallRepository) -> None:
+        self.repository = repository
+
+    async def list_calls(
+        self,
+        status: Optional[CallStatus],
+        page: int,
+        page_size: int,
+    ) -> PaginatedCallsResponse:
+        calls, total, total_pages, counts = await self.repository.list_calls(
+            status, page, page_size
+        )
+        return PaginatedCallsResponse(
+            data=[CallResponse.model_validate(c, from_attributes=True) for c in calls],
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            counts=CallCounts(
+                in_progress=counts.get("in_progress", 0),
+                success=counts.get("success", 0),
+                failed=counts.get("failed", 0),
+            ),
+        )
+
+    async def get_call(self, call_id: uuid.UUID) -> CallResponse:
+        call = await self.repository.get_by_id(call_id)
+        if call is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Call not found")
+        return CallResponse.model_validate(call, from_attributes=True)
