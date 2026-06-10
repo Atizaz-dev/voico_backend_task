@@ -1,11 +1,15 @@
+import { useEffect, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { X, Phone, User, Clock, Calendar, FileText, Sparkles } from "lucide-react";
+import { X, Phone, User, Clock, Calendar, FileText, Sparkles, StickyNote } from "lucide-react";
 import { StatusBadge } from "./CallsTable";
+import { callsApi } from "@/services/api";
 import type { Call } from "@/types/calls";
 
 interface CallDetailDrawerProps {
   call: Call | null;
   onClose: () => void;
+  onCallUpdate: (call: Call) => void;
 }
 
 function DetailRow({
@@ -35,8 +39,51 @@ function formatDuration(seconds: number | null): string {
   return m > 0 ? `${m} min ${s} sec` : `${s} sec`;
 }
 
-export function CallDetailDrawer({ call, onClose }: CallDetailDrawerProps) {
+export function CallDetailDrawer({ call, onClose, onCallUpdate }: CallDetailDrawerProps) {
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [draftNotes, setDraftNotes] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const notesMutation = useMutation({
+    mutationFn: (notes: string | null) => callsApi.updateNotes(call!.id, notes),
+    onSuccess: (updatedCall) => {
+      onCallUpdate(updatedCall);
+      setIsEditingNotes(false);
+    },
+  });
+
+  useEffect(() => {
+    setIsEditingNotes(false);
+    setDraftNotes(call?.notes ?? "");
+  }, [call?.id, call?.notes]);
+
+  useEffect(() => {
+    if (isEditingNotes) {
+      textareaRef.current?.focus();
+    }
+  }, [isEditingNotes]);
+
   if (!call) return null;
+
+  function startEditing() {
+    setDraftNotes(call!.notes ?? "");
+    setIsEditingNotes(true);
+  }
+
+  function cancelEditing() {
+    setDraftNotes(call!.notes ?? "");
+    setIsEditingNotes(false);
+  }
+
+  function saveNotes() {
+    const trimmed = draftNotes.trim();
+    const value = trimmed === "" ? null : trimmed;
+    if (value === call!.notes) {
+      setIsEditingNotes(false);
+      return;
+    }
+    notesMutation.mutate(value);
+  }
 
   return (
     <>
@@ -100,6 +147,49 @@ export function CallDetailDrawer({ call, onClose }: CallDetailDrawerProps) {
               value={format(new Date(call.ended_at), "PPpp")}
             />
           )}
+
+          {/* Notes */}
+          <div className="py-3 border-b border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <StickyNote className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-xs text-muted-foreground font-medium">Notes</h3>
+            </div>
+            {isEditingNotes ? (
+              <div className="space-y-2">
+                <textarea
+                  ref={textareaRef}
+                  value={draftNotes}
+                  onChange={(e) => setDraftNotes(e.target.value)}
+                  onBlur={saveNotes}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelEditing();
+                    }
+                  }}
+                  disabled={notesMutation.isPending}
+                  rows={4}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-[#FDDF5C]"
+                  placeholder="Add notes about this call..."
+                />
+                {notesMutation.isError && (
+                  <p className="text-xs text-red-500">Failed to save notes. Try again.</p>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={startEditing}
+                className="w-full text-left rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors min-h-[2.5rem]"
+              >
+                {call.notes ? (
+                  <span className="text-foreground whitespace-pre-wrap">{call.notes}</span>
+                ) : (
+                  <span className="text-muted-foreground italic">Click to add notes…</span>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* AI Summary */}
