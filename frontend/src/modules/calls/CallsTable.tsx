@@ -1,7 +1,7 @@
 import { format } from "date-fns";
-import { Loader2, CheckCircle2, XCircle, Phone, ChevronRight } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Phone, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { Call, CallStatus } from "@/types/calls";
+import type { Call, CallStatus, SortByField, SortOrder } from "@/types/calls";
 
 interface StatusBadgeProps {
   status: CallStatus;
@@ -39,12 +39,35 @@ function formatDuration(seconds: number | null): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
+const SORTABLE_COLUMNS: { key: SortByField; label: string }[] = [
+  { key: "phone_number", label: "Phone" },
+  { key: "caller_name", label: "Caller" },
+  { key: "status", label: "Status" },
+  { key: "label", label: "Label" },
+  { key: "duration_seconds", label: "Duration" },
+  { key: "started_at", label: "Started At" },
+];
+
 interface CallsTableProps {
   calls: Call[];
+  sortBy: SortByField | null;
+  sortOrder: SortOrder;
+  onSort: (column: SortByField) => void;
   onRowClick: (call: Call) => void;
 }
 
-export function CallsTable({ calls, onRowClick }: CallsTableProps) {
+function SortIcon({ column, sortBy, sortOrder }: { column: SortByField; sortBy: SortByField | null; sortOrder: SortOrder }) {
+  if (sortBy !== column) {
+    return <ChevronUp className="h-3 w-3 opacity-0 group-hover/th:opacity-30" />;
+  }
+  return sortOrder === "asc" ? (
+    <ChevronUp className="h-3 w-3 text-foreground" />
+  ) : (
+    <ChevronDown className="h-3 w-3 text-foreground" />
+  );
+}
+
+export function CallsTable({ calls, sortBy, sortOrder, onSort, onRowClick }: CallsTableProps) {
   if (calls.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -65,12 +88,24 @@ export function CallsTable({ calls, onRowClick }: CallsTableProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border">
-            <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Phone</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Caller</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Status</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Label</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Duration</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Started At</th>
+            {SORTABLE_COLUMNS.map((col) => (
+              <th
+                key={col.key}
+                className="text-left py-3 px-4 text-xs font-medium text-muted-foreground group/th"
+              >
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSort(col.key);
+                  }}
+                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                >
+                  {col.label}
+                  <SortIcon column={col.key} sortBy={sortBy} sortOrder={sortOrder} />
+                </button>
+              </th>
+            ))}
             <th className="py-3 px-4" />
           </tr>
         </thead>
