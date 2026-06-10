@@ -12,7 +12,6 @@ venv/
 .uv/
 
 # Environment
-.env
 *.env.local
 
 # Database
@@ -33,7 +32,6 @@ frontend/.vite/
 Thumbs.db
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -46,3 +44,7 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+config.bat
