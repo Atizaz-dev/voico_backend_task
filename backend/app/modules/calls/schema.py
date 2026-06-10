@@ -52,9 +52,14 @@ class Call(SQLModel, table=True):
         sa_column=Column(DateTime, nullable=False),
     )
     raw_transcript: Optional[str] = Field(default=None)
+    notes: Optional[str] = Field(default=None)
 
 
 # --- Request / Response schemas ---
+
+
+class UpdateNotesPayload(SQLModel):
+    notes: Optional[str] = None
 
 
 class WebhookCallPayload(SQLModel):
@@ -78,6 +83,7 @@ class CallResponse(SQLModel):
     created_at: datetime
     updated_at: datetime
     raw_transcript: Optional[str]
+    notes: Optional[str]
 
 
 class CallCounts(SQLModel):

@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw, Phone } from "lucide-react";
 import { callsApi } from "@/services/api";
-import type { Call, CallStatus } from "@/types/calls";
+import type { Call, CallStatus, FilterType, SortByField, SortOrder } from "@/types/calls";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CallFilters } from "./CallFilters";
 import { CallsTable } from "./CallsTable";
 import { CallDetailDrawer } from "./CallDetailDrawer";
 
@@ -19,26 +20,75 @@ const TABS: { label: string; value: TabValue }[] = [
 
 const PAGE_SIZE = 20;
 
+function buildQueryParams(
+  statusFilter: CallStatus | undefined,
+  filters: Partial<Record<FilterType, string>>,
+  sortBy: SortByField | null,
+  sortOrder: SortOrder,
+  page: number,
+) {
+  const params: Parameters<typeof callsApi.list>[0] = {
+    status: statusFilter,
+    page,
+    page_size: PAGE_SIZE,
+  };
+
+  if (filters.caller_name) params.caller_name = filters.caller_name;
+  if (filters.phone_number) params.phone_number = filters.phone_number;
+  if (filters.label) params.label = filters.label;
+  if (filters.min_duration) params.min_duration = Number(filters.min_duration);
+  if (filters.max_duration) params.max_duration = Number(filters.max_duration);
+  if (sortBy) {
+    params.sort_by = sortBy;
+    params.sort_order = sortOrder;
+  }
+
+  return params;
+}
+
 export function CallsPage() {
   const [activeTab, setActiveTab] = useState<TabValue>("all");
   const [page, setPage] = useState(1);
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
+  const [filters, setFilters] = useState<Partial<Record<FilterType, string>>>({});
+  const [sortBy, setSortBy] = useState<SortByField | null>(null);
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const statusFilter = activeTab === "all" ? undefined : activeTab;
+  const queryParams = buildQueryParams(statusFilter, filters, sortBy, sortOrder, page);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["calls", statusFilter, page, PAGE_SIZE],
-    queryFn: () =>
-      callsApi.list({
-        status: statusFilter,
-        page,
-        page_size: PAGE_SIZE,
-      }),
+    queryKey: ["calls", queryParams],
+    queryFn: () => callsApi.list(queryParams),
     refetchInterval: 5000,
   });
 
   function handleTabChange(tab: TabValue) {
     setActiveTab(tab);
+    setPage(1);
+  }
+
+  function handleAddFilter(type: FilterType, value: string) {
+    setFilters((prev) => ({ ...prev, [type]: value }));
+    setPage(1);
+  }
+
+  function handleRemoveFilter(type: FilterType) {
+    setFilters((prev) => {
+      const next = { ...prev };
+      delete next[type];
+      return next;
+    });
+    setPage(1);
+  }
+
+  function handleSort(column: SortByField) {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortOrder("asc");
+    }
     setPage(1);
   }
 
@@ -120,6 +170,12 @@ export function CallsPage() {
             </div>
           </div>
 
+          <CallFilters
+            filters={filters}
+            onAddFilter={handleAddFilter}
+            onRemoveFilter={handleRemoveFilter}
+          />
+
           <CardContent className="p-0">
             {isError ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -141,6 +197,9 @@ export function CallsPage() {
             ) : (
               <CallsTable
                 calls={data?.data ?? []}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSort={handleSort}
                 onRowClick={setSelectedCall}
               />
             )}
@@ -178,7 +237,11 @@ export function CallsPage() {
         </Card>
       </main>
 
-      <CallDetailDrawer call={selectedCall} onClose={() => setSelectedCall(null)} />
+      <CallDetailDrawer
+        call={selectedCall}
+        onClose={() => setSelectedCall(null)}
+        onCallUpdate={setSelectedCall}
+      />
     </div>
   );
 }
